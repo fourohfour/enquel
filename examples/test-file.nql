@@ -1,0 +1,50 @@
+define name {
+    FIRST :: string ;
+    LAST  :: string ;
+}
+
+define input {
+    NAME  :: ~ name ;
+    AGE   :: int    ;
+}
+
+define output {
+    GIVEN   :: string ;
+    SURNAME :: string ;
+    AGE     :: int    ;
+}
+
+first_name! name {
+    print NAME.FIRST ;
+}
+
+order_input! input  {
+    index input {
+        NAME.FIRST :: asc;
+        NAME.LAST  :: asc;
+    }
+}
+
+reduce_input! input #drop {
+    both {
+        NAME.FIRST = "Bill"   ;
+        NAME.LAST  = "Peters" ;
+    }
+    AGE >= 30;
+}
+
+morph_to_output! input -> output {
+    NAME.FIRST -> GIVEN   ;
+    NAME.LAST  -> SURNAME ;
+    AGE        -> AGE     ;
+}
+
+
+stream -> input    ;
+
+input ~ first_name ;
+order_input        ;
+reduce_input       ;
+morph_to_output    ;
+
+output -> stream   ;

@@ -1,0 +1,6 @@
+[package]
+name = "enquel"
+version = "0.1.0"
+authors = ["FourOhFour <404.fourohfour@gmail.com>"]
+
+[dependencies]
