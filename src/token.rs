@@ -1,8 +1,9 @@
 #[derive(Debug)]
 pub struct Origin {
-    pub row_index : i32,
-    pub col_index : i32,
-    pub length    : i32,
+    pub index     : u64,
+    pub row       : u64,
+    pub column    : u64,
+    pub length    : u64,
 }
 
 #[derive(Debug)]

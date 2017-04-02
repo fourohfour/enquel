@@ -1,10 +1,21 @@
 use token;
 
-struct Consumer<'a>{
+struct Region {
+    start_index : usize,
+    start_row   : u64,
+    start_col   : u64,
+}
+
+struct Consumer<'a> {
     slice : &'a str  ,
     chars : Vec<char>,
     ptr   : usize    ,
     grab  : usize    ,
+
+    row    : u64     ,
+    column : u64     ,
+
+    region : Option<Region>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -30,19 +41,48 @@ fn is_numeric_breaking(c: char) -> bool {
 }
 
 fn placeholder_origin() -> token::Origin {
-   token::Origin {row_index: 0, col_index: 0, length: 0} 
+   token::Origin {index: 0, row: 0, column: 0, length: 0} 
 }
 
 impl<'a> Consumer<'a> {
     fn new(slice: &'a str) -> Consumer {
-        let mut chars = slice.chars().collect();
-
+        let chars  = slice.chars().collect();
         Consumer {
-                  slice : slice,
-                  chars : chars,
-                  ptr   : 0    ,
-                  grab  : 0    ,
-                 }
+                  slice  : slice,
+                  chars  : chars,
+                  ptr    : 0    ,
+                  grab   : 0    ,
+
+                  row    : 1    ,
+                  column : 1    ,
+
+                  region : None ,
+        }
+    }
+
+    fn region_start(&mut self) {
+        self.region = Some( Region {
+            start_index: self.ptr,
+            start_row  : self.row,
+            start_col  : self.column,
+        });
+    }
+    
+    fn region_end(&mut self) -> Option<token::Origin> {
+        let mut origin = None;
+        if let Some(ref region) = self.region {
+            let length = (self.ptr - region.start_index) as u64;
+            let region_orig = token::Origin {
+                                 index  : region.start_index as u64 ,
+                                 row    : region.start_row          ,
+                                 column : region.start_col          ,
+                                 length : length                    ,
+                                };
+            origin = Some(region_orig);
+        }
+
+        self.region = None;
+        origin
     }
 
     fn current_char(&'a self) -> Option<&'a char> {
@@ -84,6 +124,13 @@ impl<'a> Consumer<'a> {
         let mut builder : Vec<char> = Vec::new();
         for index in self.ptr .. (self.ptr + self.grab + 1) {
             if let Some(c) = self.chars.get(index) {
+                if *c == '\n' {
+                    self.row    += 1;
+                    self.column  = 1;
+                }
+                else {
+                    self.column += 1;
+                }
                 builder.push(*c);
             }
             else {
@@ -133,6 +180,8 @@ impl<'a> Consumer<'a> {
             return None;
         }
 
+        self.region_start();
+
         loop {
             if let Some(peek) = self.peek() {
                 if is_name_breaking(peek) && is_numeric_breaking(peek) {
@@ -143,23 +192,30 @@ impl<'a> Consumer<'a> {
                         let value = self.consume();
                         if let Ok(ival) = value.parse::<i64>() {
                             let number = token::Number::Integer(ival);
-                            return Some(token::Token {origin: placeholder_origin(),
-                                                      value : token::TokenValue::NumberLiteral(number)});
+                            if let Some(token_origin) = self.region_end() {
+                                return Some(token::Token {origin: token_origin,
+                                                          value : token::TokenValue::NumberLiteral(number)});
+                            }
                         }
                         else {
                             return None;
                         }
                     }
                     else if ltype == Literal::Name {
-                        return Some(token::Token {origin: placeholder_origin(),
-                                                  value : token::TokenValue::Name(self.consume())});
+                        let name = self.consume();
+                        if let Some(token_origin) = self.region_end() {
+                            return Some(token::Token {origin: token_origin,
+                                                      value : token::TokenValue::Name(name)});
+                        }
                     }
                     else if ltype == Literal::Float {
                         let value = self.consume();
                         if let Ok(fval) = value.parse::<f64>() {
                             let number = token::Number::Float(fval);
-                            return Some(token::Token {origin: placeholder_origin(),
-                                                      value : token::TokenValue::NumberLiteral(number)});
+                            if let Some(token_origin) = self.region_end() {
+                                return Some(token::Token {origin: token_origin,
+                                                          value : token::TokenValue::NumberLiteral(number)});
+                            }
                         }
                         else {
                             return None;
@@ -180,8 +236,10 @@ impl<'a> Consumer<'a> {
                         let value = self.consume();
                         if let Ok(fval) = value.parse::<f64>() {
                             let number = token::Number::Float(fval);
-                            return Some(token::Token {origin: placeholder_origin(),
-                                                      value : token::TokenValue::NumberLiteral(number)});
+                            if let Some(token_origin) = self.region_end() {
+                                return Some(token::Token {origin: token_origin,
+                                                          value : token::TokenValue::NumberLiteral(number)});
+                            }
                         }
                         else {
                             return None;
@@ -205,8 +263,11 @@ impl<'a> Consumer<'a> {
                         }
                     }
                     else {
-                        return Some(token::Token {origin: placeholder_origin(),
-                                                  value : token::TokenValue::Name(self.consume())});
+                        let name = self.consume();
+                        if let Some(token_origin) = self.region_end() {
+                            return Some(token::Token {origin: token_origin,
+                                                      value : token::TokenValue::Name(name)});
+                        }
                     }
                 }
                 else {
@@ -225,12 +286,14 @@ impl<'a> Consumer<'a> {
         self.consume_while(|c| c.is_whitespace())
     }
 
-    fn consume_string_literal(&mut self) -> Option<String> {
+    fn consume_string_literal(&mut self) -> Option<token::Token> {
         if let Some(init) = self.current() {
             if !(init == '\"') {
                 return None;
             }
             else {
+                self.region_start();
+
                 let mut escape = false;
                 let mut controls: Vec<u32> = vec![0];
                 let mut index = 1;
@@ -247,7 +310,14 @@ impl<'a> Consumer<'a> {
                                 }
                                 
                                 self.consume();
-                                return Some(result.into_iter().collect());
+                                if let Some(origin) = self.region_end(){
+                                    let value  = result.into_iter().collect();
+                                    return Some(token::Token {origin: origin,
+                                                              value : token::TokenValue::StringLiteral(value)});
+                                }
+                                else {
+                                    return None;
+                                }
                             }
 
                             if c == '\\' {
@@ -278,16 +348,17 @@ impl<'a> Consumer<'a> {
 
     fn consume_symbol(&mut self) -> Option<token::Token> {
         if let Some(init) = self.current() {
+            self.region_start();
             if init == '!' {
                 if let Some(next) = self.peek() {
                     if next == '=' {
                         self.grab(); self.consume();
-                        return Some(token::Token {origin: placeholder_origin(),
+                        return Some(token::Token {origin: self.region_end().unwrap(),
                                                   value : token::TokenValue::NotEqual}); 
                     }
                 }
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Bang});
             }
 
@@ -314,42 +385,42 @@ impl<'a> Consumer<'a> {
                     }
                 }
 
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Hash(self.consume())});
 
             }
 
             if init == '{' {
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::LeftBrace}); 
                 // LeftBrace
             }
 
             if init == '}' {
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::RightBrace});
                 // RightBrace
             }
 
             if init == ';' {
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Semicolon});
                 // Semicolon
             }
 
             if init == '.' {
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Dot})    
                 // Dot
             }
 
             if init == '~' {
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Tilde})
                 // Tilde
             }
@@ -358,19 +429,19 @@ impl<'a> Consumer<'a> {
                 if let Some(next) = self.peek() {
                     if next == '>' {
                         self.grab(); self.consume();
-                        return Some(token::Token {origin: placeholder_origin(),
+                        return Some(token::Token {origin: self.region_end().unwrap(),
                                                   value : token::TokenValue::Map}); 
                     }
                 }
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Minus});
             }
             if init == ':' {
                 if let Some(next) = self.peek() {
                     if next == ':' {
                         self.grab(); self.consume();
-                        return Some(token::Token {origin: placeholder_origin(),
+                        return Some(token::Token {origin: self.region_end().unwrap(),
                                                   value : token::TokenValue::Assign}); 
                     }
                 }
@@ -380,7 +451,7 @@ impl<'a> Consumer<'a> {
             
             if init == '=' {
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Equal})
                 // Equal
             }
@@ -389,25 +460,25 @@ impl<'a> Consumer<'a> {
                 if let Some(next) = self.peek() {
                     if next == '=' {
                         self.grab(); self.consume();
-                        return Some(token::Token {origin: placeholder_origin(),
+                        return Some(token::Token {origin: self.region_end().unwrap(),
                                                   value : token::TokenValue::GreaterOrEqual}); 
                     }
                 }
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Greater});
             }
             
             if init == '<' {
-                if let Some(next) = self.peek() {
+               if let Some(next) = self.peek() {
                     if next == '=' {
                         self.grab(); self.consume();
-                        return Some(token::Token {origin: placeholder_origin(),
+                        return Some(token::Token {origin: self.region_end().unwrap(),
                                                   value : token::TokenValue::LessOrEqual}); 
                     }
                 }
                 self.consume();
-                return Some(token::Token {origin: placeholder_origin(),
+                return Some(token::Token {origin: self.region_end().unwrap(),
                                           value : token::TokenValue::Less});
             }
 
@@ -440,9 +511,7 @@ pub fn tokenise(program: &str) -> Vec<token::Token> {
                 }
             }
             else if c == '\"' {
-                if let Some(s) = consumer.consume_string_literal(){
-                    let token = token::Token {origin: placeholder_origin(),
-                                              value : token::TokenValue::StringLiteral(s)};
+                if let Some(token) = consumer.consume_string_literal(){
                     tokens.push(token);
                 }
             }
