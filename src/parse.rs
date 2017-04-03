@@ -2,10 +2,10 @@ use token;
 pub use token::Number;
 
 #[derive(Debug)]
-pub enum PrimaryValue {
-    Name          (String),
-    StringLiteral (String),
-    NumberLiteral (Number),
+pub enum ArgClass {
+    Modify,
+    Map   ,
+    Pivot ,
 }
 
 #[derive(Debug)]
@@ -16,18 +16,6 @@ pub enum LogicalBlock {
     Neither,
 }
 
-#[derive(Debug)]
-pub enum BlockInfo {
-    Define  {table: PrimaryValue   },
-    
-    Index   {table: PrimaryValue   },
-
-    Method  {name : PrimaryValue,
-             table: PrimaryValue,
-             eval : PrimaryValue,  },
-    
-    Logical {operator: LogicalBlock},
-}
 
 #[derive(Debug)]
 pub enum EvaluatorType {
@@ -48,20 +36,34 @@ pub enum ComparisonOperator {
 
 #[derive(Debug)]
 pub enum NodeData {
-    Root                               ,
-    Primary    { value: PrimaryValue  },
-    Evaluator  { eval : EvaluatorType },
-    Embed                              ,
-    Accessor                           ,
-    Minus                              ,
-    Comparison { operator:
-                 ComparisonOperator   },
-    Assignment                         ,
-    Map                                ,
+    Root                        ,
+ 
+    StringLiteral { value: String } ,
+    NumberLiteral { value: Number } ,
+    Name          { value: String } ,
 
-    Call       { method: PrimaryValue },
-    Block      { info  : BlockInfo    },
-    Statement                          ,
+    Evaluator { eval:
+                EvaluatorType } ,
+    Embed                       ,
+    Accessor                    ,
+    Minus                       ,
+    Comparison { operator:
+           ComparisonOperator } ,
+
+    Assignment                  ,
+    Map                         ,
+    
+    Args    { class: ArgClass } ,
+    Call    { method: String }  ,
+
+    Define  { table: String }   ,
+    Index   { table: String }   ,
+    Method  { table: String }   ,
+    Logical { operator:
+              LogicalBlock  } ,
+
+    Block                       ,
+    Statement                   ,
 }
 
 pub struct Node {
