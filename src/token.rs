@@ -34,8 +34,9 @@ pub enum TokenValue {
     Minus       ,
 
     // Binary Ops
-    Assign         ,
-    Map            ,
+    DoubleColon    ,
+    SetEqual       ,
+    Arrow          ,
 
     Equal          ,
     NotEqual       ,

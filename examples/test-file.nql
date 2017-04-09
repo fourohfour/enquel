@@ -1,17 +1,17 @@
 define name {
-    FIRST :: string ;
-    LAST  :: string ;
+    FIRST := string ;
+    LAST  := string ;
 }
 
 define input {
-    NAME  :: ~ name ;
-    AGE   :: int    ;
+    NAME  := ~ name ;
+    AGE   := int    ;
 }
 
 define output {
-    GIVEN   :: string ;
-    SURNAME :: string ;
-    AGE     :: int    ;
+    GIVEN   := string ;
+    SURNAME := string ;
+    AGE     := int    ;
 }
 
 first_name! name {
@@ -20,8 +20,8 @@ first_name! name {
 
 order_input! input  {
     index input {
-        NAME.FIRST :: asc;
-        NAME.LAST  :: asc;
+        order NAME.FIRST asc;
+        order NAME.LAST  asc;
     }
 }
 
@@ -42,7 +42,7 @@ morph_to_output! input -> output {
 
 stream -> input    ;
 
-input ~ first_name ;
+input::first_name  ;
 order_input        ;
 reduce_input       ;
 morph_to_output    ;

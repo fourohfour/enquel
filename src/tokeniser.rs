@@ -430,7 +430,7 @@ impl<'a> Consumer<'a> {
                     if next == '>' {
                         self.grab(); self.consume();
                         return Some(token::Token {origin: self.region_end().unwrap(),
-                                                  value : token::TokenValue::Map}); 
+                                                  value : token::TokenValue::Arrow}); 
                     }
                 }
                 self.consume();
@@ -442,11 +442,16 @@ impl<'a> Consumer<'a> {
                     if next == ':' {
                         self.grab(); self.consume();
                         return Some(token::Token {origin: self.region_end().unwrap(),
-                                                  value : token::TokenValue::Assign}); 
+                                                  value : token::TokenValue::DoubleColon}); 
+                    }
+                    else if next == '=' {
+                        self.grab(); self.consume();
+                        return Some(token::Token {origin: self.region_end().unwrap(),
+                                                  value : token::TokenValue::SetEqual});
                     }
                 }
                 self.consume();
-                return None;
+                return None
             }
             
             if init == '=' {

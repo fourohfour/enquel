@@ -36,32 +36,43 @@ pub enum ComparisonOperator {
 
 #[derive(Debug)]
 pub enum NodeData {
-    Root                        ,
- 
+    Root,
+
+    // Precedence 1 (Primary)
     StringLiteral { value: String } ,
     NumberLiteral { value: Number } ,
     Name          { value: String } ,
 
+    // Precedence 2 (Tightest)
     Evaluator { eval:
                 EvaluatorType } ,
     Embed                       ,
+    Scope                       ,
     Accessor                    ,
+
+    // Precedence 3
     Minus                       ,
+    
+    // Precedence 4
     Comparison { operator:
            ComparisonOperator } ,
 
     Assignment                  ,
     Map                         ,
-    
+
+    // Precedence 4
     Args    { class: ArgClass } ,
     Call    { method: String }  ,
-
+    Action  { name  : String }  ,
+    
+    // Precedence 5 (Structural)
     Define  { table: String }   ,
     Index   { table: String }   ,
     Method  { table: String }   ,
     Logical { operator:
-              LogicalBlock  } ,
-
+              LogicalBlock  }   ,
+   
+    // Precedence 6
     Block                       ,
     Statement                   ,
 }
